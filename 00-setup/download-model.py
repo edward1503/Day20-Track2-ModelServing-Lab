@@ -25,22 +25,7 @@ TIERS: dict[str, tuple[str, str, str]] = {
         "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
         "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
         "tinyllama-1.1b-chat-v1.0.Q2_K.gguf",
-    ),
-    "Qwen2.5-1.5B-Instruct": (
-        "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-        "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        "qwen2.5-1.5b-instruct-q2_k.gguf",
-    ),
-    "Llama-3.2-3B-Instruct": (
-        "bartowski/Llama-3.2-3B-Instruct-GGUF",
-        "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        "Llama-3.2-3B-Instruct-Q2_K.gguf",
-    ),
-    "Qwen2.5-7B-Instruct": (
-        "Qwen/Qwen2.5-7B-Instruct-GGUF",
-        "qwen2.5-7b-instruct-q4_k_m.gguf",
-        "qwen2.5-7b-instruct-q2_k.gguf",
-    ),
+    )
 }
 
 

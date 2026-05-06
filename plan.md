@@ -314,33 +314,252 @@ git push origin main
 
 ## TASK 6 (BONUS): Optimization Sweeps — tối đa +20đ
 
-> Không bắt buộc. Laptop yếu lại có lợi thế — mỗi optimization dễ thấy speedup rõ.
+> Không bắt buộc. Nhưng **rất nên làm** vì:
+> - Máy bạn (i5-10300H + GTX 1650 4GB) là setup lý tưởng — có GPU nhưng VRAM nhỏ → partial offload sẽ cho insight rất rõ
+> - Bonus 16đ khả thi (MLX 4đ không áp dụng vì không phải Apple Silicon)
+> - §5 REFLECTION (10đ core) **cần** kết quả bonus để viết mạnh — đây là phần grader đọc kỹ nhất
 
 ### Bonus scoring breakdown
 
-| Tiêu chí | Điểm |
-|---|---:|
-| Build `llama.cpp` từ source (any backend) | 4 |
-| ≥1 sweep committed (`benchmarks/bonus-*.md`) | 4 |
-| Speedup quantified (before/after) trong REFLECTION §5 | 4 |
-| ≥1 challenge từ CHALLENGES.md attempted | 4 |
-| MLX comparison (Apple Silicon only — không áp dụng) | 4 |
+| # | Tiêu chí | Bằng chứng | Điểm |
+|---|---|---|---:|
+| B1 | Build `llama.cpp` từ source | `llama-bench --version` chạy | 4 |
+| B2 | ≥1 sweep committed | `benchmarks/bonus-*.md` non-trivial | 4 |
+| B3 | Speedup quantified | before/after trong REFLECTION §5 | 4 |
+| B4 | ≥1 challenge attempted | Writeup trong REFLECTION hoặc file riêng | 4 |
+| B5 | MLX comparison | ❌ Không áp dụng (cần Apple Silicon) | — |
+| | **Tổng bonus khả thi** | | **16** |
 
-### Gợi ý sweep phù hợp cho Windows
+---
 
-| Target | Khi nào dùng | Insight |
-|---|---|---|
-| `make sweep-thread` | CPU-only laptop | Tìm peak physical-core, thấy drop khi vào hyperthreads |
-| `make sweep-quant` | RAM ít | So sánh Q2_K → Q4_K_M → Q8_0: size vs speed vs quality |
-| `make sweep-ctx` | Long-context workload | Prefill scales ~O(N²) |
-| `make sweep-batch` | Server mode | batch-size đánh đổi throughput vs TTFT |
-| `make sweep-gpu` | Có GPU | `-ngl 0,8,16,...,99` partial vs full offload |
+### BONUS STEP 1: Build llama.cpp từ source (4đ) — ~15 phút
 
-### ✅ DoD — Task 6
-- [ ] (4đ) Build thành công: `BONUS-llama-cpp-optimization/llama.cpp/build/bin/llama-bench --version` chạy
-- [ ] (4đ) File `benchmarks/bonus-*.md` tồn tại với bảng kết quả non-trivial
-- [ ] (4đ) REFLECTION.md §5 có before/after numbers + speedup factor
-- [ ] (4đ) Writeup cho ≥1 challenge (C1–C7) trong REFLECTION hoặc file riêng
+**Yêu cầu:** CUDA Toolkit 12+, cmake, MSVC (Visual Studio Build Tools).
+
+> ⚠️ Bạn cài `llama.cpp` qua `winget` chỉ là binary — chưa tính là "build from source".
+> Grader cần thấy `BONUS-llama-cpp-optimization/llama.cpp/build/bin/llama-bench.exe` từ source build.
+
+**Bước 1.1: Kiểm tra prerequisites**
+```powershell
+nvcc --version          # cần CUDA Toolkit 12+
+cmake --version         # cần cmake 3.21+
+cl                      # cần MSVC (từ Visual Studio Build Tools)
+```
+
+Nếu thiếu, cài:
+- **CUDA Toolkit:** https://developer.nvidia.com/cuda-downloads
+- **cmake:** `winget install Kitware.CMake`
+- **MSVC:** `winget install Microsoft.VisualStudio.2022.BuildTools` → chọn "C++ build tools"
+
+**Bước 1.2: Clone + Build**
+```powershell
+cd D:\VSCODE\VINAI\Day20-Track2-ModelServing-Lab\BONUS-llama-cpp-optimization
+git clone --depth 1 https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+
+# Build CUDA + native CPU instructions (AVX2 trên i5-10300H)
+cmake -B build -DGGML_CUDA=ON -DGGML_NATIVE=ON
+cmake --build build -j --config Release
+```
+
+**Bước 1.3: Verify**
+```powershell
+.\build\bin\Release\llama-bench.exe --version
+# Hoặc:
+.\build\bin\Release\llama-bench.exe -m ..\..\models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -t 4 -ngl 99 -n 64
+```
+
+**Chụp screenshot** → `submission/screenshots/06-bonus-sweep.png` (hoặc thêm vào sau khi chạy sweep)
+
+### ✅ DoD — Step 1
+- [ ] Thư mục `BONUS-llama-cpp-optimization/llama.cpp/build/` tồn tại
+- [ ] `llama-bench.exe` chạy không lỗi
+- [ ] Build log hiện `-DGGML_CUDA=ON -DGGML_NATIVE=ON`
+
+---
+
+### BONUS STEP 2: Chạy Sweep (4đ) — ~15-20 phút
+
+**Chọn 2 sweep phù hợp nhất cho máy bạn:**
+
+#### Sweep A: GPU Offload Sweep ⭐ (Khuyên dùng — insight mạnh nhất)
+
+Máy bạn có GTX 1650 (4GB VRAM) + TinyLlama 1.1B (~0.7GB Q4_K_M) → model **vừa đủ fit** trong VRAM.
+Sweep này cho thấy khi nào GPU offload giúp, khi nào không:
+
+```powershell
+python BONUS-llama-cpp-optimization\benchmarks\gpu-offload-sweep.py
+```
+
+Script sẽ chạy `llama-bench` với `-ngl 0, 8, 16, 24, 32, 99` và ghi kết quả vào `benchmarks/bonus-gpu-offload-sweep.md`.
+
+**Kỳ vọng trên máy bạn:**
+| -ngl | Ý nghĩa | Dự đoán |
+|---:|---|---|
+| 0 | 100% CPU | Baseline chậm nhất |
+| 8–16 | Partial offload | Nhanh hơn 0, nhưng bus PCIe trở thành bottleneck |
+| 24–32 | Gần full offload | Nhanh nhất nếu model fit |
+| 99 | Full offload | Nhanh nhất — toàn bộ 1.1B fit trong 4GB VRAM |
+
+**Insight cần viết:** Giải thích _tại sao_ `-ngl 99` thắng (model nhỏ fit hoàn toàn vào VRAM → không cần bus CPU↔GPU → decode chỉ bị memory bandwidth GPU giới hạn, mà GDDR6 @ ~192 GB/s >> DDR4 @ ~42 GB/s trên i5-10300H).
+
+#### Sweep B: Thread Sweep (Bổ sung tốt)
+
+Cho thấy peak ở physical cores (4) rồi drop khi vào hyperthreads (8):
+
+```powershell
+python BONUS-llama-cpp-optimization\benchmarks\thread-sweep.py
+```
+
+Ghi kết quả vào `benchmarks/bonus-thread-sweep.md`.
+
+**Kỳ vọng:**
+| Threads | Dự đoán |
+|---:|---|
+| 1–2 | Chậm, chưa dùng hết bandwidth |
+| 4 (= physical) | **Peak** — 4 core thật, memory controller bão hòa |
+| 8 (= logical) | **Drop** — hyperthreads tranh nhau memory channel |
+| 16 (= 2× logical) | Chậm hơn nữa |
+
+**Insight:** LLM decode là **memory-bandwidth-bound**, không phải compute-bound. Thêm thread vượt physical cores không giúp vì bottleneck là tốc độ đọc RAM, không phải tính toán.
+
+### ✅ DoD — Step 2
+- [ ] File `benchmarks/bonus-gpu-offload-sweep.md` tồn tại, có bảng ≥5 dòng
+- [ ] HOẶC file `benchmarks/bonus-thread-sweep.md` tồn tại, có bảng ≥4 dòng
+- [ ] Screenshot sweep output → `submission/screenshots/06-bonus-sweep.png`
+
+---
+
+### BONUS STEP 3: Quantify Speedup cho REFLECTION §5 (4đ)
+
+Đây là bước **quan trọng nhất** — kết quả sweep ở Step 2 trở thành nội dung §5 REFLECTION.
+
+**Template viết §5 (copy + điền số):**
+
+```markdown
+## 5. Bonus — The single change that mattered most
+
+**Change:** Offload toàn bộ model lên GPU (GTX 1650 4GB) bằng flag `-ngl 99`
+
+**Before vs after:**
+before (CPU only, -ngl 0):   <X> tok/s
+after  (full GPU, -ngl 99):  <Y> tok/s
+speedup: ~<Y/X>×
+
+**Tại sao nó work:**
+
+TinyLlama-1.1B Q4_K_M chỉ ~0.7GB, fit hoàn toàn trong 4GB VRAM của GTX 1650.
+Khi `-ngl 0`, decode phải đọc toàn bộ model weights từ DDR4 RAM qua memory 
+controller của i5-10300H. DDR4-2933 dual-channel cho ~42 GB/s bandwidth.
+
+Khi `-ngl 99`, decode đọc weights từ GDDR6 trên GPU. GTX 1650 Max-Q có 
+memory bandwidth ~192 GB/s — gấp ~4.5× so với CPU RAM. Vì LLM decode ở
+batch-size 1 là hoàn toàn memory-bandwidth-bound (mỗi token cần đọc toàn bộ 
+model weights 1 lần), speedup gần bằng tỉ lệ bandwidth.
+
+Tuy nhiên, partial offload (-ngl 8, 16) không scale tuyến tính vì thêm 
+overhead truyền activation qua bus PCIe 3.0 x16 (~16 GB/s) giữa CPU và GPU 
+sau mỗi layer. Full offload (-ngl 99) loại bỏ hoàn toàn chi phí này.
+```
+
+> 💡 **Tip:** Nếu kết quả khác kỳ vọng (vd: `-ngl 99` không nhanh hơn nhiều) → **viết rõ** tại sao. Grader thưởng điểm cho nhận xét trung thực + phân tích đúng, không phải speedup lớn.
+
+### ✅ DoD — Step 3
+- [ ] REFLECTION.md §5 có tên thay đổi cụ thể
+- [ ] Có số liệu before/after (tok/s hoặc ms)
+- [ ] Có speedup factor (vd: ~3.2×)
+- [ ] Có ≥1 đoạn giải thích WHY dựa trên hardware model (bandwidth, compute, cache)
+- [ ] Không vibes-based — có logic rõ ràng
+
+---
+
+### BONUS STEP 4: Attempt 1 Challenge (4đ) — ~30-60 phút
+
+**Khuyên dùng cho máy bạn: C6 — Vulkan vs CUDA**
+
+Bạn có NVIDIA GPU → build 2 lần (CUDA + Vulkan), so sánh tốc độ, giải thích tại sao vendor-specific kernels (CUDA) nhanh hơn generic compute API (Vulkan).
+
+**Bước thực hiện:**
+
+```powershell
+# Build 1: đã có từ Step 1 (CUDA)
+# Ghi nhận kết quả CUDA
+.\BONUS-llama-cpp-optimization\llama.cpp\build\bin\Release\llama-bench.exe `
+    -m models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -t 4 -ngl 99 -n 128 -r 3
+
+# Build 2: Vulkan
+cd BONUS-llama-cpp-optimization\llama.cpp
+cmake -B build-vulkan -DGGML_VULKAN=ON -DGGML_NATIVE=ON
+cmake --build build-vulkan -j --config Release
+cd ..\..
+
+# Ghi nhận kết quả Vulkan
+.\BONUS-llama-cpp-optimization\llama.cpp\build-vulkan\bin\Release\llama-bench.exe `
+    -m models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -t 4 -ngl 99 -n 128 -r 3
+```
+
+> ⚠️ Vulkan build cần Vulkan SDK. Cài: `winget install KhronosGroup.VulkanSDK`
+
+**Writeup template (tạo file `benchmarks/bonus-challenge-c6.md`):**
+```markdown
+# Challenge C6 — Vulkan vs CUDA on GTX 1650
+
+## Setup
+- GPU: NVIDIA GeForce GTX 1650 Max-Q (4GB GDDR6)
+- Model: TinyLlama-1.1B Q4_K_M  
+- -ngl 99, -t 4, -n 128, -r 3
+
+## Results
+| Backend | tg128 (tok/s) | pp512 (tok/s) |
+|---|---:|---:|
+| CUDA | <X> | <A> |
+| Vulkan | <Y> | <B> |
+| Speedup (CUDA/Vulkan) | <X/Y>× | <A/B>× |
+
+## Analysis
+CUDA nhanh hơn Vulkan ~<Z>× vì ...
+(giải thích: CUDA kernels được tối ưu riêng cho kiến trúc Turing/Ampere,
+dùng Tensor Cores, shared memory layout tối ưu. Vulkan dùng compute 
+shaders generic, không access được Tensor Cores, overhead dispatch cao hơn.
+Đây chính là lý do vLLM/SGLang chỉ hỗ trợ CUDA — vendor-specific kernels
+như FlashAttention, CUTLASS, cuBLAS cho hiệu năng cao hơn đáng kể.)
+```
+
+**Thay thế nếu không cài được Vulkan SDK:** Chọn **C2 — KV-cache quantization**
+
+```powershell
+# So sánh server có/không KV cache quantization
+# Terminal 1: chạy server KHÔNG quantize KV
+llama-server -m models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --port 8080 -ngl 99 --metrics
+
+# Terminal 1 (lần 2): chạy server CÓ quantize KV  
+llama-server -m models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --port 8080 -ngl 99 --metrics `
+    --cache-type-k q8_0 --cache-type-v q8_0
+```
+
+So sánh RAM usage + latency + quality trên cùng 5 prompts.
+
+### ✅ DoD — Step 4
+- [ ] Đã attempt ≥1 challenge (C2 hoặc C6)
+- [ ] Có file writeup: `benchmarks/bonus-challenge-c6.md` HOẶC section trong REFLECTION
+- [ ] Có bảng before/after numbers
+- [ ] Có ≥1 đoạn phân tích (không chỉ paste số)
+
+---
+
+### Tổng kết Bonus — Priority Order
+
+```
+Ưu tiên cao → thấp:
+
+Step 3: Viết §5 REFLECTION (4đ) ← DỄ NHẤT, ảnh hưởng cả 10đ core
+Step 2: Chạy GPU offload sweep (4đ) ← chạy 1 lệnh, 15 phút
+Step 1: Build from source (4đ) ← cần CUDA Toolkit + MSVC
+Step 4: Challenge C6 hoặc C2 (4đ) ← tốn thời gian nhất, làm cuối
+```
+
+> **Nếu thời gian ít:** Chỉ cần làm Step 2 + Step 3 = **8đ bonus** + REFLECTION §5 mạnh hơn rất nhiều.
+> Sweep scripts dùng `llama-bench` từ source build → cần Step 1 trước.
 
 ---
 
