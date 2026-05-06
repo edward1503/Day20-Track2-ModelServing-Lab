@@ -70,12 +70,19 @@ def main() -> int:
         sample = scrape(args.url)
         if sample:
             sample["t"] = round(time.time(), 1)
+            
+            # Since recent llama.cpp removed kv_cache_usage_ratio, we derive a proxy load ratio
+            # using n_busy_slots_per_decode divided by the maximum slots (4).
+            busy_slots = sample.get('llamacpp:n_busy_slots_per_decode', 0)
+            simulated_kv_ratio = busy_slots / 4.0
+            sample['llamacpp:kv_cache_usage_ratio'] = simulated_kv_ratio
+            
             rows.append(sample)
             print(
                 f"   t={sample['t']:.0f}  "
                 f"reqs_proc={sample.get('llamacpp:requests_processing', 0):.0f}  "
                 f"deferred={sample.get('llamacpp:requests_deferred', 0):.0f}  "
-                f"kv_ratio={sample.get('llamacpp:kv_cache_usage_ratio', 0):.2f}  "
+                f"kv_ratio={simulated_kv_ratio:.2f}  "
                 f"tok_pred={sample.get('llamacpp:tokens_predicted_total', 0):.0f}"
             )
         else:

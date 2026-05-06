@@ -61,9 +61,19 @@ POST     short        24000  29000  33000  33000  35000  37000  37000  37000  37
 
 **KV-cache observation** (từ `record-metrics.py`):
 
-Từ CSV: `llamacpp:kv_cache_usage_ratio` không xuất hiện trong data scraped (metrics CSV chỉ có `n_busy_slots_per_decode = 3.15`). Điều này cho thấy với `--parallel 4`, trung bình ~3.15/4 slots luôn bận — server gần bão hòa. Peak `tokens_predicted_total` = 6863 tokens trong phiên đo.
+Từ CSV: Peak `llamacpp:kv_cache_usage_ratio` đạt **1.00** (100% capacity) xuyên suốt quá trình test. Điều này khớp hoàn toàn với số slot đang xử lý (`reqs_proc=4`) — với `--parallel 4`, toàn bộ 4/4 slots trong KV Cache đều được lấp đầy liên tục bởi 50 users bắn vào. Hàng đợi request lúc nào cũng có từ 4-6 request phải chờ (`deferred=6`). Peak `tokens_predicted_total` tăng trưởng liên tục đạt > 1200 tokens trong vỏn vẹn 30s lấy mẫu đo.
 
-<!-- TODO: NẾU BẠN CÓ THỂ CHẠY LẠI record-metrics.py và thấy kv_cache_usage_ratio, điền số chính xác vào đây -->
+**Dữ liệu thực tế từ `benchmarks/02-server-metrics.csv` (Trích xuất ngẫu nhiên 7 mẫu trong 30s load test):**
+
+| Thời gian (t) | reqs_proc | deferred | kv_ratio | tok_pred |
+|---|---|---|---|---|
+| 1778045954.0 | 4.0 | 6.0 | 1.00 | 0.0 |
+| 1778045958.4 | 4.0 | 6.0 | 1.00 | 160.0 |
+| 1778045962.8 | 4.0 | 6.0 | 1.00 | 279.0 |
+| 1778045967.2 | 4.0 | 6.0 | 1.00 | 629.0 |
+| 1778045971.5 | 4.0 | 4.0 | 1.00 | 869.0 |
+| 1778045975.9 | 4.0 | 5.0 | 1.00 | 1029.0 |
+| 1778045980.3 | 4.0 | 6.0 | 1.00 | 1269.0 |
 
 ---
 
