@@ -16,17 +16,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-LLAMA_BENCH = Path("BONUS-llama-cpp-optimization/llama.cpp/build/bin/llama-bench")
+LLAMA_BENCH = Path("llama-bench")
 LLAMA_BENCH_EXE = LLAMA_BENCH.with_suffix(".exe")
-TG_RE = re.compile(r"\|\s*tg128\s*\|\s*([0-9.]+)\s*±")
+TG_RE = re.compile(r"\|\s*tg64\s*\|\s*([0-9.]+)\s*±")
 
 
 def find_bench() -> Path:
-    for p in (LLAMA_BENCH, LLAMA_BENCH_EXE):
-        if p.exists():
-            return p
-    print("ERROR: build llama.cpp first.", file=sys.stderr)
-    sys.exit(1)
+    # Use global llama-bench installed via winget
+    return Path("llama-bench")
 
 
 def main() -> int:

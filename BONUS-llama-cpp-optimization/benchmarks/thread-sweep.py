@@ -18,20 +18,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-LLAMA_BENCH = Path("BONUS-llama-cpp-optimization/llama.cpp/build/bin/llama-bench")
+LLAMA_BENCH = Path("llama-bench")
 LLAMA_BENCH_EXE = LLAMA_BENCH.with_suffix(".exe")
 
 # llama-bench prints a markdown-ish table; this regex grabs the tg128 (decode) row.
-TG_RE = re.compile(r"\|\s*tg128\s*\|\s*([0-9.]+)\s*±")
+TG_RE = re.compile(r"\|\s*tg64\s*\|\s*([0-9.]+)\s*±")
 
 
 def find_bench() -> Path:
-    for p in (LLAMA_BENCH, LLAMA_BENCH_EXE):
-        if p.exists():
-            return p
-    print(f"ERROR: llama-bench not found at {LLAMA_BENCH}", file=sys.stderr)
-    print("       Build llama.cpp first — see BONUS-llama-cpp-optimization/01-build-from-source.md.", file=sys.stderr)
-    sys.exit(1)
+    return Path("llama-bench")
 
 
 def load_active() -> str:
